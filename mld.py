@@ -128,7 +128,7 @@ def create_model(A, b, B, E, d, c, xcap, x0, cost, N):
                 m.addConstr(x[label("x", i, j)] == x[label("x", i, j - 1)] +
                             d[i][j - 1] +
                             g.quicksum(
-                                E[i][k] * B[i][k] * z[label("z", k, j - 1)]
+                                B[i][k] * z[label("z", k, j - 1)]
                                 for k in range(len(B))))
 
     # Transformation constraints
