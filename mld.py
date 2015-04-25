@@ -9,36 +9,21 @@ def delta_label(l, i):
     return l + "_" + str(i)
 
 
-def add_max_constr(m, label, args, K):
-    y = {}
-    y[label] = m.addVar(lb=0, ub=K, name=label)
+def add_max_constr(m, label, args, K, nnegative=True):
+    return add_minmax_constr(m, label, args, K, 'max', nnegative)
 
-    if len(args) == 0:
-        m.update()
-        m.addConstr(y[label] == K)
 
-    else:
-        for i in range(len(args)):
-            l = delta_label(label, i)
-            y[l] = m.addVar(vtype=g.GRB.BINARY, name=l)
-
-        m.update()
-
-        for i in range(len(args)):
-            x = delta_label(label, i)
-            m.addConstr(y[label] >= args[i])
-            m.addConstr(y[label] <= args[i] + y[x] * K)
-
-        m.addConstr(g.quicksum([y[delta_label(label, i)]
-                                for i in range(len(args))] == len(args) - 1))
-
-    return y
+def add_min_constr(m, label, args, K, nnegative=True):
+    return add_minmax_constr(m, label, args, K, 'min', nnegative)
 
 
 # TODO handle len(args) == 2 differently
-def add_min_constr(m, label, args, K):
+def add_minmax_constr(m, label, args, K, op='min', nnegative=True):
+    if op not in ['min', 'max']:
+        raise ValueError('Expected one of [min, max]')
+
     y = {}
-    y[label] = m.addVar(lb=0, ub=K, name=label)
+    y[label] = m.addVar(lb=0 if nnegative else -K, ub=K, name=label)
 
     if len(args) == 0:
         m.update()
@@ -53,8 +38,12 @@ def add_min_constr(m, label, args, K):
 
         for i in range(len(args)):
             x = delta_label(label, i)
-            m.addConstr(y[label] <= args[i])
-            m.addConstr(y[label] >= args[i] - y[x] * K)
+            if op == 'min':
+                m.addConstr(y[label] <= args[i])
+                m.addConstr(y[label] >= args[i] - y[x] * K)
+            else:
+                m.addConstr(y[label] >= args[i])
+                m.addConstr(y[label] <= args[i] + y[x] * K)
 
         m.addConstr(g.quicksum([y[delta_label(label, i)]
                                 for i in range(len(args))]) == len(args) - 1)
@@ -62,9 +51,27 @@ def add_min_constr(m, label, args, K):
     return y
 
 
+def add_abs_var(m, label, var, obj):
+    if m.modelSense == g.GRB.MINIMIZE:
+        z = m.addVar(name="abs_"+label, obj=obj)
+        m.update()
+        m.addConstr(z >= var)
+        m.addConstr(z >= -var)
+        return z
+
+    else:
+        return None
+
+
 def add_always_constr(m, label, a, b, rho, K, t=0):
     y = add_min_constr(m, label, rho[(t + a):(t + b + 1)], K)[label]
-    # Just y>=0 (lower bound is part of the definition of the variable)
+    return y
+
+
+def add_always_penalized(m, label, a, b, rho, K, obj, t=0):
+    y = add_always_constr(m, label, a, b, rho, K, t)
+    m.setAttr("OBJ", [y], [-obj])
+    add_abs_var(m, label, y, obj)
     return y
 
 
@@ -80,6 +87,7 @@ def create_model(A, b, B, E, d, c, xcap, x0, cost, N):
     M = max(xcap)
 
     m = g.Model("traffic")
+    m.modelSense = g.GRB.MINIMIZE
 
     x = {}
     y = {}
@@ -102,7 +110,6 @@ def create_model(A, b, B, E, d, c, xcap, x0, cost, N):
                 z[labelz] = m.addVar(lb=0, ub=g.GRB.INFINITY, name=labelz)
                 u[labelu] = m.addVar(vtype=g.GRB.BINARY, name=labelu)
 
-    m.modelSense = g.GRB.MINIMIZE
     m.update()
 
     for i in range(len(B)):
@@ -184,8 +191,8 @@ def run():
     y = var[3]
     #ymin = var[4]
 
-    add_always_constr(
-        m, "alw", 0, 3, [-x[label("x", 3, j)] + 9 for j in range(N - 1)], 100)
+    add_always_penalized(
+        m, "alw", 0, 3, [-x[label("x", 3, j)] + 9 for j in range(N - 1)], 100, 100)
     m.update()
 
     m.optimize()
