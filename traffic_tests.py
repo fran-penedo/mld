@@ -1,4 +1,5 @@
 from traffic import *
+from nose.tools import assert_list_equal
 
 
 def test():
@@ -43,4 +44,12 @@ def test():
 
     m.write('foo.lp')
 
-    print_solution(m, var)
+    print_solution(m, var, len(B), N)
+
+    xcur = x0
+    for j in range(N-1):
+        model._d = [d[i][j] for i in range(len(B))]
+        ucur = [u[label("u", i, j)] for i in range(len(B))]
+        xcur = model.run_once(ucur, xcur)
+        assert_list_equal(xcur, [x[label("x", i, j)] for i in range(len(B))])
+

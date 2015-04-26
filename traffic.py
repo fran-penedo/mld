@@ -22,6 +22,12 @@ class TrafficModel(object):
         self._xcap = xcap
         self._A = A
         self._b = b
+        self._for = []
+
+
+    def add_formula(self, f):
+        self._for.append(f)
+
 
     def run_once(self, u, x0):
         v = [min([self._xcap] +
@@ -35,7 +41,8 @@ class TrafficModel(object):
 
         x = [x0[i] + self._d[i] +
              sum([self._beta[i][k] * z[k]
-                  for k in range(len(B))]) for i in range(len(self._beta))]
+                  for k in range(len(self._beta))])
+             for i in range(len(self._beta))]
 
         return x
 
@@ -127,18 +134,18 @@ def label(name, i, j):
     return name + "_" + str(i) + "_" + str(j)
 
 
-def print_solution(m, var):
+def print_solution(m, var, n, N):
     (u, x, z, y) = var
 
     if m.status == g.GRB.status.OPTIMAL:
         print('t '),
-        for i in range(len(B)):
+        for i in range(n):
             print('x' + str(i) + ' '),
-        for i in range(len(B)):
+        for i in range(n):
             print('u' + str(i) + ' '),
-        for i in range(len(B)):
+        for i in range(n):
             print('z' + str(i) + ' '),
-        for i in range(len(B)):
+        for i in range(n):
             print('y' + str(i) + ' '),
         print('')
 
@@ -148,18 +155,18 @@ def print_solution(m, var):
         yx = m.getAttr('x', y)
         for j in range(N - 1):
             print(str(j) + ' '),
-            for i in range(len(B)):
+            for i in range(n):
                 print('%d ' % round(xx[label('x', i, j)])),
-            for i in range(len(B)):
+            for i in range(n):
                 print('%d ' % round(ux[label('u', i, j)])),
-            for i in range(len(B)):
+            for i in range(n):
                 print('%d ' % round(zx[label('z', i, j)])),
-            for i in range(len(B)):
+            for i in range(n):
                 print('%d ' % round(yx[label('y', i, j)])),
             print('')
 
         print(str(N - 1) + ' '),
-        for i in range(len(B)):
+        for i in range(n):
             print('%d ' % round(xx[label('x', i, N - 1)])),
 
 
