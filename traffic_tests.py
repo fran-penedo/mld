@@ -26,20 +26,19 @@ def test():
     cost = [2, 1, 2, 1]
     N = 5
 
-    m, var = create_milp(model, x0, cost, N)
-    (u, x, z, y) = var
+    xsignal = lambda i, j: lambda milp: -milp.getVarByName(label("x", i, j)) + 9
 
     formula = Formula(ALWAYS, bounds=[0, 3],
                       args=[Formula(EXPR,
                                     args=[Signal(
-                                        [-x[label("x", 3, j)] +
-                                         9 for j in range(N - 1)],
+                                        [xsignal(3, j) for j in range(N - 1)],
                                         [-xcap[3], xcap[3]])])])
-    alw, bounds = add_stl_constr(m, "alw", formula)
-    add_penalty(m, "alw", alw, 100)
+    model.add_formula(formula, 100, "alw")
+
+    m, var = create_milp(model, x0, cost, N)
+    (u, x, z, y) = var
 
     m.update()
-
     m.optimize()
 
     m.write('foo.lp')

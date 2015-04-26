@@ -81,15 +81,18 @@ def add_milp_var(m, label, delta, x, M, mm):
 class Signal(object):
 
     def __init__(self, signal, bounds):
-        self.signal = signal
+        self._signal = signal
         self.bounds = bounds
+
+    def signal(self, milp, t):
+        return self._signal[t](milp)
 
 
 def _stl_expr(m, label, f, t):
     bounds = f.args[0].bounds
     y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
     m.update()
-    m.addConstr(y == f.args[0].signal[t])
+    m.addConstr(y == f.args[0].signal(m, t))
     return y, bounds
 
 

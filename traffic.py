@@ -25,8 +25,8 @@ class TrafficModel(object):
         self._for = []
 
 
-    def add_formula(self, f):
-        self._for.append(f)
+    def add_formula(self, f, cost=None, label=""):
+        self._for.append((f, cost, label))
 
 
     def run_once(self, u, x0):
@@ -127,6 +127,13 @@ def create_milp(model, x0, cost, N):
                 g.quicksum(A[k][i] * u[label("u", i, j)]
                            for i in range(len(B))) <= b[k])
 
+    for f, cost, lbl in model._for:
+        var, bounds = add_stl_constr(m, lbl, f)
+        if cost is None:
+            m.setAttr("LB", [var], [0])
+        else:
+            add_penalty(m, lbl, var, cost)
+
     return m, [u, x, z, y]
 
 
@@ -168,5 +175,9 @@ def print_solution(m, var, n, N):
         print(str(N - 1) + ' '),
         for i in range(n):
             print('%d ' % round(xx[label('x', i, N - 1)])),
+
+
+def rhc_traffic(model, x0, cost, N, H):
+    pass
 
 
