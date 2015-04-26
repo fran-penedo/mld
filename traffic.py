@@ -177,7 +177,22 @@ def print_solution(m, var, n, N):
             print('%d ' % round(xx[label('x', i, N - 1)])),
 
 
-def rhc_traffic(model, x0, cost, N, H):
-    pass
+def rhc_traffic(model, x0, cost, N, hp):
+    hd = max([f[0].horizon() for f in model._for])
+    H = hp + hd
+
+    map(lambda f: (Formula(ALWAYS, [f[0]], [0, hp - 1]), f[1], f[2]),
+        model._for)
+
+    xcur = x0
+    for j in range(N - 1):
+        milp, var = create_milp(model, xcur, cost, H)
+        (u, x, z, y) = var
+        # Fix parameter d, right now it's ugly as all hell
+        #model._d = [d[i][j] for i in range(len(B))]
+        ucur = [u[label("u", i, j)] for i in range(len(model._beta))]
+        xcur = model.run_once(ucur, xcur)
+
+
 
 
