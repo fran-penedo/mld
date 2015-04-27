@@ -8,6 +8,21 @@ ALWAYS = 5
 EVENTUALLY = 6
 
 
+class Signal(object):
+
+    def __init__(self, labels, f, bounds=None):
+        self._labels = labels
+        self._f = f
+        self.bounds = bounds
+
+    def signal(self, model, t):
+        vs = map(lambda l: model.getVarByName(l(t)), self._labels)
+        if any(var is None for var in vs):
+            return None
+        else:
+            return self._f(vs)
+
+
 class Formula(object):
 
     """Docstring for Formula. """
@@ -48,3 +63,19 @@ class Formula(object):
             ALWAYS: self._halways,
             EVENTUALLY: self._heventually
         }[self.op]()
+
+
+def robustness(formula, model, t=0):
+    return {
+        EXPR: lambda: formula.args[0].signal(model, t),
+        NOT: lambda: -robustness(formula.args[0], model, t),
+        AND: lambda: min(map(lambda f: robustness(f, model, t), formula.args)),
+        OR: lambda: max(map(lambda f: robustness(f, model, t), formula.args)),
+        NEXT: lambda: robustness(formula.args[0], model, t + 1),
+        ALWAYS: lambda: min(map(
+            lambda j: robustness(formula.args[0], model, t + j),
+            range(formula.bnd[0], formula.bnd[1] + 1))),
+        EVENTUALLY: lambda: max(map(
+            lambda j: robustness(formula.args[0], model, t + j),
+            range(formula.bnd[0], formula.bnd[1] + 1)))
+    }[formula.op]()
