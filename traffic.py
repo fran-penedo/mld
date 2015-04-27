@@ -1,9 +1,12 @@
 from mld import *
+from random import Random
+from collections import deque
 
 
 class TrafficModel(object):
 
-    def __init__(self, alpha, beta, d, c, xcap, A, b):
+    def __init__(self, alpha, beta, d, c, xcap, A, b,
+                 dvar=None, betavar=None, seed=None):
         """TODO: to be defined1.
 
         :alpha: Capacity available to upstream matrix. Diagonal should be 1.
@@ -13,6 +16,9 @@ class TrafficModel(object):
         :xcap: Capacity of each link.
         :A: Canonical form coefficient matrix for control variable constraints.
         :b: Right hand side vector for control variable constraints.
+        :dvar: Variance of d
+        :betavar: Variance of beta
+        :seed: Seed of the random number generator
 
         """
         self._alpha = alpha
@@ -22,6 +28,10 @@ class TrafficModel(object):
         self._xcap = xcap
         self._A = A
         self._b = b
+        self._dvar = dvar if dvar is not None else [0 for i in range(len(xcap))]
+        self._betavar = betavar if betavar is not None else \
+            [[0 for i in range(len(xcap))] for j in range(len(xcap))]
+        self._random = Random(seed)
         self._for = []
 
 
@@ -30,24 +40,30 @@ class TrafficModel(object):
 
 
     def run_once(self, u, x0):
+        beta = [[self._beta[i][j] - self._random.uniform(0, self._betavar[i][j])
+                 for j in range(len(self._beta))]
+                for i in range(len(self._beta))]
+        d = [self._d[i] - self._random.uniform(0, self._dvar[i])
+             for i in range(len(self._d))]
+
         v = [min([self._xcap] +
-                 [self._alpha[k][i] / self._beta[k][i] *
+                 [self._alpha[k][i] / beta[k][i] *
                      (self._xcap[i] - x0[i]) for k in range(len(self._beta))
-                     if self._beta[k][i] > 0])
+                     if beta[k][i] > 0])
              for i in range(len(self._beta))]
 
         z = [u[i] * min([x0[i], self._c[i], v[i]])
              for i in range(len(self._beta))]
 
-        x = [x0[i] + self._d[i] +
-             sum([self._beta[i][k] * z[k]
+        x = [x0[i] + d[i] +
+             sum([beta[i][k] * z[k]
                   for k in range(len(self._beta))])
              for i in range(len(self._beta))]
 
         return x
 
 
-def create_milp(model, x0, cost, N):
+def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
     # Some aliases to reduce clutter
     E = model._alpha
     B = model._beta
@@ -74,7 +90,7 @@ def create_milp(model, x0, cost, N):
     v = {}
     # actual decision variables
     for i in range(len(B)):
-        for j in range(N):
+        for j in range(-len(xhist), N):
             # system state
             labelx = label("x", i, j)
             # control variable
@@ -89,12 +105,13 @@ def create_milp(model, x0, cost, N):
 
     # y, v and z variables
     for i in range(len(B)):
-        for j in range(N - 1):
+        for j in range(-len(xhist), N - 1):
             # v = min(alpha/beta(xcap - x))
+            Bcur = B if j >= 0 else betahist[len(betahist) + j]
             v.update(
                 add_min_constr(
                     m, label("v", i, j),
-                    [E[k][i] / B[k][i] * (xcap[i] - x[label("x", i, j)])
+                    [E[k][i] / Bcur[k][i] * (xcap[i] - x[label("x", i, j)])
                      for k in range(len(B)) if B[k][i] > 0], K_out))
             # y = min(x, c, v)
             y.update(
@@ -109,13 +126,15 @@ def create_milp(model, x0, cost, N):
 
     # Dynamics constraints
     for i in range(len(B)):
-        for j in range(N):
-            if j == 0:
+        for j in range(-len(xhist), N):
+            if j < 0:
+                m.addConstr(x[label("x", i, j)] == xhist[len(xhist) + j])
+            elif j == 0:
                 m.addConstr(x[label("x", i, j)] == x0[i])
             else:
                 # x = x + d + u*beta*y = x + d + beta*z
                 m.addConstr(x[label("x", i, j)] == x[label("x", i, j - 1)] +
-                            d[i][j - 1] +
+                            d[i] +
                             g.quicksum(
                                 B[i][k] * z[label("z", k, j - 1)]
                                 for k in range(len(B))))
@@ -181,18 +200,21 @@ def rhc_traffic(model, x0, cost, N, hp):
     hd = max([f[0].horizon() for f in model._for])
     H = hp + hd
 
-    map(lambda f: (Formula(ALWAYS, [f[0]], [0, hp - 1]), f[1], f[2]),
+    map(lambda f: (Formula(ALWAYS, [f[0]], [-hd, hp]), f[1], f[2]),
         model._for)
 
     xcur = x0
+    xhist = deque([x0])
+    betahist = deque()
     for j in range(N - 1):
-        milp, var = create_milp(model, xcur, cost, H)
+        milp, var = create_milp(model, xcur, cost, H, xhist[:-1], betahist)
         (u, x, z, y) = var
-        # Fix parameter d, right now it's ugly as all hell
-        #model._d = [d[i][j] for i in range(len(B))]
+        milp.optimize()
         ucur = [u[label("u", i, j)] for i in range(len(model._beta))]
-        xcur = model.run_once(ucur, xcur)
-
-
-
+        xcur, beta = model.run_once(ucur, xcur)
+        xhist.append(xcur)
+        betahist.append(beta)
+        if j >= hd:
+            xhist.popleft()
+            betahist.popleft()
 

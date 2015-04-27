@@ -87,7 +87,7 @@ class Signal(object):
     def signal(self, milp, t):
         return self._signal[t](milp)
 
-
+#TODO handle None signal
 def _stl_expr(m, label, f, t):
     bounds = f.args[0].bounds
     y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
