@@ -80,12 +80,17 @@ def add_milp_var(m, label, delta, x, M, mm):
 
 class Signal(object):
 
-    def __init__(self, signal, bounds):
-        self._signal = signal
+    def __init__(self, labels, f, bounds):
+        self._labels = labels
+        self._f = f
         self.bounds = bounds
 
     def signal(self, milp, t):
-        return self._signal[t](milp)
+        vs = map(lambda l: milp.getVarByName(l(t)), self._labels)
+        if any(var is None for var in vs):
+            return None
+        else:
+            return self._f(vs)
 
 #TODO handle None signal
 def _stl_expr(m, label, f, t):

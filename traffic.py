@@ -60,7 +60,7 @@ class TrafficModel(object):
                   for k in range(len(self._beta))])
              for i in range(len(self._beta))]
 
-        return x
+        return x, beta
 
 
 def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
@@ -128,7 +128,7 @@ def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
     for i in range(len(B)):
         for j in range(-len(xhist), N):
             if j < 0:
-                m.addConstr(x[label("x", i, j)] == xhist[len(xhist) + j])
+                m.addConstr(x[label("x", i, j)] == xhist[len(xhist) + j][i])
             elif j == 0:
                 m.addConstr(x[label("x", i, j)] == x0[i])
             else:
@@ -208,14 +208,17 @@ def rhc_traffic(model, x0, cost, N, hp):
     xhist = deque([x0])
     betahist = deque()
     for j in range(N - 1):
-        milp, var = create_milp(model, xcur, cost, H, list(xhist)[:-1], betahist)
+        milp, var = create_milp(model, xcur, cost, H,
+                                xhist=list(xhist)[:-1],
+                                betahist=betahist)
         (u, x, z, y) = var
-        m.params.outputflag = 0
+        milp.params.outputflag = 0
         milp.optimize()
-        if m.status != g.GRB.status.OPTIMAL:
+        if milp.status != g.GRB.status.OPTIMAL:
             raise Exception("Couldn't solve MILP")
 
-        ucur = [u[label("u", i, j)] for i in range(len(model._beta))]
+        uu = milp.getAttr("x", u)
+        ucur = [uu[label("u", i, 0)] for i in range(len(model._beta))]
         xcur, beta = model.run_once(ucur, xcur)
         xhist.append(xcur)
         betahist.append(beta)
