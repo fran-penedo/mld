@@ -148,10 +148,11 @@ def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
 
     for f, cost, lbl in model._for:
         var, bounds = add_stl_constr(m, lbl, f)
-        if cost is None:
-            m.setAttr("LB", [var], [0])
-        else:
-            add_penalty(m, lbl, var, cost)
+        if var is not None:
+            if cost is None:
+                m.setAttr("LB", [var], [0])
+            else:
+                add_penalty(m, lbl, var, cost)
 
     return m, [u, x, z, y]
 
@@ -207,9 +208,13 @@ def rhc_traffic(model, x0, cost, N, hp):
     xhist = deque([x0])
     betahist = deque()
     for j in range(N - 1):
-        milp, var = create_milp(model, xcur, cost, H, xhist[:-1], betahist)
+        milp, var = create_milp(model, xcur, cost, H, list(xhist)[:-1], betahist)
         (u, x, z, y) = var
+        m.params.outputflag = 0
         milp.optimize()
+        if m.status != g.GRB.status.OPTIMAL:
+            raise Exception("Couldn't solve MILP")
+
         ucur = [u[label("u", i, j)] for i in range(len(model._beta))]
         xcur, beta = model.run_once(ucur, xcur)
         xhist.append(xcur)

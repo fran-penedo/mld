@@ -89,18 +89,25 @@ class Signal(object):
 
 #TODO handle None signal
 def _stl_expr(m, label, f, t):
-    bounds = f.args[0].bounds
-    y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
-    m.update()
-    m.addConstr(y == f.args[0].signal(m, t))
-    return y, bounds
+    expr = f.args[0].signal(m, t)
+    if expr is not None:
+        bounds = f.args[0].bounds
+        y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
+        m.update()
+        m.addConstr(y == expr)
+        return y, bounds
+    else:
+        return None, None
 
 
 def _stl_not(m, label, f, t):
     x, bounds = _stl_expr(m, label + "_not", f.args[0], t)
-    y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
-    m.update()
-    m.addConstr(y == -x)
+    if x is not None:
+        y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
+        m.update()
+        m.addConstr(y == -x)
+    else:
+        return None, None
 
 
 def _stl_and_or(m, label, f, t, op):
@@ -108,15 +115,20 @@ def _stl_and_or(m, label, f, t, op):
     boundss = []
     for i, ff in enumerate(f.args):
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), ff, t)
-        xx.append(x)
-        boundss.append(bounds)
+        if x is not None:
+            xx.append(x)
+            boundss.append(bounds)
 
-    # I'm not gonna bother using the best bounds
-    bounds = map(max, zip(*boundss))
-    K = max(map(abs, bounds))
-    add = add_min_constr if op == "min" else add_max_constr
-    y = add(m, label, xx, K, nnegative=False)[label]
-    return y, bounds
+    if len(xx) > 0:
+        # I'm not gonna bother using the best bounds
+        bounds = map(max, zip(*boundss))
+        K = max(map(abs, bounds))
+        add = add_min_constr if op == "min" else add_max_constr
+        y = add(m, label, xx, K, nnegative=False)[label]
+        return y, bounds
+
+    else:
+        return None, None
 
 
 def _stl_and(m, label, f, t):
@@ -137,15 +149,20 @@ def _stl_always_eventually(m, label, f, t, op):
     for i in range(f.bnd[0], f.bnd[1] + 1):
         x, bounds = add_stl_constr(m, label + "_" + op + str(i), f.args[0],
                                    t + i)
-        xx.append(x)
-        boundss.append(bounds)
+        if x is not None:
+            xx.append(x)
+            boundss.append(bounds)
 
-    # I'm not gonna bother using the best bounds
-    bounds = map(max, zip(*boundss))
-    K = max(map(abs, bounds))
-    add = add_min_constr if op == "alw" else add_max_constr
-    y = add(m, label, xx, K, nnegative=False)[label]
-    return y, bounds
+    if len(xx) > 0:
+        # I'm not gonna bother using the best bounds
+        bounds = map(max, zip(*boundss))
+        K = max(map(abs, bounds))
+        add = add_min_constr if op == "alw" else add_max_constr
+        y = add(m, label, xx, K, nnegative=False)[label]
+        return y, bounds
+
+    else:
+        return None, None
 
 
 def _stl_always(m, label, f, t):
