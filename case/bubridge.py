@@ -55,3 +55,7 @@ def run():
     model = t.TrafficModel(alpha, beta, d, c, xcap, A, b)
 
     t.rhc_traffic(model, x0, cost, 10, 2)
+
+
+if __name__ == "__main__":
+    run()
