@@ -34,10 +34,8 @@ class TrafficModel(object):
         self._random = Random(seed)
         self._for = []
 
-
     def add_formula(self, f, cost=None, label=""):
         self._for.append((f, cost, label))
-
 
     def run_once(self, u, x0):
         beta = [[self._beta[i][j] - self._random.uniform(0, self._betavar[i][j])
@@ -83,11 +81,7 @@ def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
     m = g.Model("traffic")
     m.modelSense = g.GRB.MINIMIZE
 
-    x = {}
-    y = {}
-    z = {}
-    u = {}
-    v = {}
+    x, y, z, u, v, r = ({}, {}, {}, {}, {}, {})
     # actual decision variables
     for i in range(len(B)):
         for j in range(-len(xhist), N):
@@ -149,12 +143,13 @@ def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
     for f, cost, lbl in model._for:
         var, bounds = add_stl_constr(m, lbl, f)
         if var is not None:
+            r[lbl] = var
             if cost is None:
                 m.setAttr("LB", [var], [0])
             else:
                 add_penalty(m, lbl, var, cost)
 
-    return m, [u, x, z, y]
+    return m, [u, x, z, y, r]
 
 
 def label(name, i, j):
@@ -162,7 +157,7 @@ def label(name, i, j):
 
 
 def print_solution(m, var, n, N):
-    (u, x, z, y) = var
+    (u, x, z, y, r) = var
 
     if m.status == g.GRB.status.OPTIMAL:
         print('t '),
@@ -197,12 +192,15 @@ def print_solution(m, var, n, N):
             print('%d ' % round(xx[label('x', i, N - 1)])),
 
 
-def rhc_traffic(model, x0, cost, N, hp):
+def rhc_traffic(model, x0, cost, N, hp, log=None):
     hd = max([f[0].horizon() for f in model._for])
     H = hp + hd
 
-    map(lambda f: (Formula(ALWAYS, [f[0]], [-hd, hp]), f[1], f[2]),
-        model._for)
+    model._for = \
+        map(lambda f: (Formula(ALWAYS, [f[0]], [-hd, hp]), f[1], f[2] + "_hor"),
+            model._for) + \
+        map(lambda f: (
+            Formula(ALWAYS, [f[0]], [-hd - 1, hd - 1]), f[1], f[2]), model._for)
 
     xcur = x0
     xhist = deque([x0])
@@ -211,18 +209,21 @@ def rhc_traffic(model, x0, cost, N, hp):
         milp, var = create_milp(model, xcur, cost, H,
                                 xhist=list(xhist)[:-1],
                                 betahist=betahist)
-        (u, x, z, y) = var
+        (u, x, z, y, r) = var
         milp.params.outputflag = 0
         milp.optimize()
         if milp.status != g.GRB.status.OPTIMAL:
             raise Exception("Couldn't solve MILP")
 
         uu = milp.getAttr("x", u)
+        rr = milp.getAttr("x", r)
         ucur = [uu[label("u", i, 0)] for i in range(len(model._beta))]
         xcur, beta = model.run_once(ucur, xcur)
+        if log is not None:
+            log(model, xcur, ucur, rr)
+
         xhist.append(xcur)
         betahist.append(beta)
-        if j >= hd:
+        if j > hd:
             xhist.popleft()
             betahist.popleft()
-

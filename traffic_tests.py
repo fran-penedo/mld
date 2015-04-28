@@ -30,8 +30,12 @@ def test_rhc():
                                         [lambda j: label("x", 1, j)],
                                         lambda x: -x[0] + 9,
                                         [-xcap[1], xcap[1]])])])
-    model.add_formula(formula, 100, "eve")
-    rhc_traffic(model, x0, cost, 10, 2)
+    model.add_formula(formula, label="eve")
+
+    def log(model, x, u, r):
+        assert r["eve"] >= 0
+
+    rhc_traffic(model, x0, cost, 10, 2, log)
 
 
 def test_milp():
@@ -45,7 +49,7 @@ def test_milp():
     model.add_formula(formula, 100, "alw")
 
     m, var = create_milp(model, x0, cost, N)
-    (u, x, z, y) = var
+    (u, x, z, y, r) = var
 
     m.update()
     m.optimize()
