@@ -77,7 +77,6 @@ def add_milp_var(m, label, delta, x, M, mm):
 
 # STL related transformations
 
-#TODO handle None signal
 def _stl_expr(m, label, f, t):
     expr = f.args[0].signal(m, t)
     if expr is not None:
@@ -91,11 +90,12 @@ def _stl_expr(m, label, f, t):
 
 
 def _stl_not(m, label, f, t):
-    x, bounds = _stl_expr(m, label + "_not", f.args[0], t)
+    x, bounds = add_stl_constr(m, label + "_not", f.args[0], t)
     if x is not None:
         y = m.addVar(name=label, lb=bounds[0], ub=bounds[1])
         m.update()
         m.addConstr(y == -x)
+        return y, bounds
     else:
         return None, None
 

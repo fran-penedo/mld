@@ -1,4 +1,27 @@
 import traffic as t
+from stl import *
+import matplotlib.pyplot as plt
+
+data = {
+    'cost': [],
+    'robustness': {}
+}
+cost = [1 for i in range(13)]
+
+
+def log(model, x, u, r):
+    data['cost'].append([cost[i] * x[i] for i in range(len(x))])
+    for phi, rho in r.items():
+        if phi in data['robustness']:
+            data['robustness'][phi].append(rho)
+
+
+def plot():
+    f = plt.figure()
+    f1 = f.add_subplot(111)
+    f1.plot(data['robustness']['flowf'])
+    plt.show()
+
 
 
 def run():
@@ -22,6 +45,7 @@ def run():
     xcap[0] = 10
     xcap[11] = 10
     xcap[12] = 10
+    xcap[1] = xcap[2] = xcap[3] = xcap[4] = xcap[5] = 10000
 
     c = [6, 6, 6, 6, 6, 2, 6, 6, 6, 6, 3, 6, 6]
 
@@ -44,9 +68,9 @@ def run():
     ]
 
     A = [[0 for i in range(13)] for j in range(len(cons))]
-    for lhs in zip(*cons)[0]:
-        for i, a in lhs:
-            A[i] = a
+    for i, lhs in enumerate(zip(*cons)[0]):
+        for j, a in lhs:
+            A[i][j] = a
     b = zip(*cons)[1]
 
     x0 = [0 for i in range(13)]
@@ -54,7 +78,59 @@ def run():
 
     model = t.TrafficModel(alpha, beta, d, c, xcap, A, b)
 
-    t.rhc_traffic(model, x0, cost, 10, 2)
+    def slabel(s, i):
+        return lambda j: t.label(s, i, j)
+
+    lightf = Formula(OR, [
+        Formula(NOT, [
+            Formula(AND, [
+                Formula(EXPR, [Signal(
+                    [slabel("u", 9)], lambda x: -x[0], [-1, 1])]),
+                Formula(NEXT, [
+                    Formula(EXPR, [Signal(
+                        [slabel("u", 9)], lambda x: x[0] - 1, [-1, 1])]),
+                ])
+
+            ])
+        ]),
+        Formula(NEXT, [
+            Formula(NEXT, [
+                Formula(EXPR, [Signal(
+                    [slabel("u", 8)], lambda x: x[0] - 1, [-1, 1])]),
+            ])
+        ])
+    ])
+
+    blockf = Formula(OR, [
+        Formula(EXPR, [Signal(
+            [slabel("x", 6)], lambda x: (xcap[6] - x[0]) - 5, [-5, xcap[6]]
+        )]),
+        Formula(EXPR, [Signal(
+            [slabel("u", 4)], lambda x: -x[0], [-1, 1]
+        )])
+    ])
+
+    flowf = Formula(OR, [
+        Formula(NOT, [
+            Formula(EXPR, [Signal(
+                [slabel("x", 4)], lambda x: x[0] - c[4], [-c[4], xcap[4]]
+            )])
+        ]),
+        Formula(EXPR, [Signal(
+            [slabel("y", 4)], lambda x: x[0] - c[4], [-c[4], xcap[4]]
+        )])
+    ])
+
+    model.add_formula(flowf, 100, "flowf")
+    model.add_formula(blockf, 100, "blockf")
+    model.add_formula(lightf, 500, "lightf")
+
+    data['robustness']['flowf'] = []
+    data['robustness']['blockf'] = []
+    data['robustness']['lightf'] = []
+
+    t.rhc_traffic(model, x0, cost, 10, 2, log)
+    plot()
 
 
 if __name__ == "__main__":

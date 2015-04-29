@@ -46,7 +46,7 @@ class TrafficModel(object):
 
         v = [min([self._xcap] +
                  [self._alpha[k][i] / beta[k][i] *
-                     (self._xcap[i] - x0[i]) for k in range(len(self._beta))
+                     (self._xcap[k] - x0[k]) for k in range(len(self._beta))
                      if beta[k][i] > 0])
              for i in range(len(self._beta))]
 
@@ -123,6 +123,7 @@ def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
         for j in range(-len(xhist), N):
             if j < 0:
                 m.addConstr(x[label("x", i, j)] == xhist[len(xhist) + j][i])
+                m.addConstr(u[label("u", i, j)] == uhist[len(uhist) + j][i])
             elif j == 0:
                 m.addConstr(x[label("x", i, j)] == x0[i])
             else:
@@ -148,6 +149,8 @@ def create_milp(model, x0, cost, N, xhist=[], uhist=[], betahist=[]):
                 m.setAttr("LB", [var], [0])
             else:
                 add_penalty(m, lbl, var, cost)
+
+    m.update()
 
     return m, [u, x, z, y, r]
 
@@ -193,7 +196,7 @@ def print_solution(m, var, n, N):
 
 
 def rhc_traffic(model, x0, cost, N, hp, log=None):
-    hd = max([f[0].horizon() for f in model._for])
+    hd = max([0] + [f[0].horizon() for f in model._for])
     H = hp + hd
 
     model._for = \
@@ -204,11 +207,12 @@ def rhc_traffic(model, x0, cost, N, hp, log=None):
 
     xcur = x0
     xhist = deque([x0])
+    uhist = deque()
     betahist = deque()
     for j in range(N - 1):
         milp, var = create_milp(model, xcur, cost, H,
                                 xhist=list(xhist)[:-1],
-                                betahist=betahist)
+                                betahist=betahist, uhist=uhist)
         (u, x, z, y, r) = var
         milp.params.outputflag = 0
         milp.optimize()
@@ -224,6 +228,8 @@ def rhc_traffic(model, x0, cost, N, hp, log=None):
 
         xhist.append(xcur)
         betahist.append(beta)
+        uhist.append(ucur)
         if j > hd:
             xhist.popleft()
+            uhist.popleft()
             betahist.popleft()
