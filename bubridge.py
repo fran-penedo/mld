@@ -19,7 +19,7 @@ def log(model, x, u, r):
 def plot():
     f = plt.figure()
     f1 = f.add_subplot(111)
-    f1.plot(data['robustness']['flowf'])
+    f1.plot(data['robustness']['ncarsf'])
     plt.show()
 
 
@@ -121,13 +121,22 @@ def run():
         )])
     ])
 
+    ncarsf = Formula(EVENTUALLY, bounds=[0, 2], args=[
+        Formula(EXPR, [Signal(
+            [slabel("x", 9), slabel("x", 10)], lambda x: -x[0] - x[1] + 10,
+            [- c[9] - c[10], 10]
+        )])
+    ])
+
     model.add_formula(flowf, 100, "flowf")
     model.add_formula(blockf, 100, "blockf")
     model.add_formula(lightf, 500, "lightf")
+    model.add_formula(ncarsf, 100, "ncarsf")
 
     data['robustness']['flowf'] = []
     data['robustness']['blockf'] = []
     data['robustness']['lightf'] = []
+    data['robustness']['ncarsf'] = []
 
     t.rhc_traffic(model, x0, cost, 10, 2, log)
     plot()
