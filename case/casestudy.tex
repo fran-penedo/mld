@@ -1,0 +1,44 @@
+\documentclass[12pt]{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{mathtools}
+
+\begin{document}
+
+\begin{figure}
+    \caption{Traffic network for case study}
+    \label{fig:casestudy}
+\end{figure}
+
+\begin{table}
+    \begin{align*}
+        &x^{cap}_i = \left \{ \begin{matrix*}[l]
+            10 & \text{ if } i = 0,11,12 \\
+            \infty & \text{ if } i = 1,2,3,4,5 \\
+            30 & \text{ otherwise }
+        \end{matrix*} \right . \\
+        &c_6 = 2, c_{11} = 3, c_i = 6 \text{ otherwise } \\
+        &\beta = \\
+        &\alpha_{ij} = 1, \text{ for all } i,j
+    \end{align*}
+    \caption{Parameters for the network depicted in Figure~\ref{fig:casestudy}}
+    \label{tab:casestudy}
+\end{table}
+% missing d
+
+We consider a traffic network as depicted in Figure~\ref{fig:casestudy}. The network consists of two main intersections and two yields [add names to the intersections?]. Yields are accomplished by adding control constraints to the problem: $ u_i = 1, i \in \{0,1,5,10,11\} $. We also add the following safety constraints ensuring cross links are not simultaneously enabled: $ 2 u_i + u_j + u_k \leq 2, (i,j,k) \in \{ (9,12,2),(7,12,2),(3,8,4)\} $. Note that we allow the whole intersection to be red, as well as having only one direction being green. However, this is a design choice for this case study that could easily be changed, even for specific intersections only.
+
+The STL specification is given by the following formulae:
+
+\begin{gather}
+    \begin{aligned}
+        &\varphi_{light} = \lnot ((-u_9 \geq 0) \land \bigcirc (u_9 - 1 \geq 0)) \lor 
+            \bigcirc \bigcirc (u_8 - 1 \geq 0) \\
+        &\varphi_{block} = (x^{cap}_6 - x_6 - 5 \geq 0) \lor (-u_4 \geq 0) \\
+        &\varphi_{flow} = \lnot (x_4 - c_4 \geq 0) \lor (y_4 - c_4 \geq 0)
+    \end{aligned}
+\end{gather}
+
+Intuitively, $\varphi_{light}$ means that a car that is just being given right of way in the left intersection should be able to cross the second one without stopping; $\varphi_{block} $ ensures that if traffic in link 6 is potentially blocking the intersection for link 4 (by being too close to its maximum capacity), the intersection is closed for link 4, and $\varphi_{flow}$ means that traffic from link 4 should flow at maximum capacity (recall that $y$ is an auxiliary variable that amounts for the total traffic that is allowed to flow from a link at a time step).
+
+\end{document}
